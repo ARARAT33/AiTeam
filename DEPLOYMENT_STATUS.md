@@ -4,7 +4,7 @@ Provisioned in the connected Cloudflare account:
 
 - Pages project: `awe-ai-workforce`
 - Main URL: `https://awe-ai-workforce.pages.dev` (production branch is `main`; production deployment awaits merge)
-- Successful preview deployment: `https://2eebf4d1.awe-ai-workforce.pages.dev`
+- Successful preview deployment: `https://feat-awe-ai-workforce-founda.awe-ai-workforce.pages.dev`
 - D1 database: `awe-ai-workforce`, UUID `e2e4e5cf-eee9-4f70-8407-50f8fc8b986f`, primary region EEUR
 - D1 schema: applied successfully; models, tasks, task_events, memories, plugins and settings are initialized
 - GitHub source: `ARARAT33/AiTeam`; preview deployments enabled
@@ -17,4 +17,4 @@ Provisioned in the connected Cloudflare account:
 4. Deploy `scheduler/worker.js` as `awe-ai-workforce-scheduler`, bind the same D1 database as `DB`, set the encryption secret and add the `* * * * *` Cron Trigger.
 5. After the PR is reviewed and merged, verify owner login, add one model API key, and run a test task.
 
-The GitHub PR remains a draft foundation. The preview build completed successfully, but the production branch is still `main`.
+The GitHub PR remains a draft foundation. The latest preview build and deploy completed successfully. Production is still the `main` branch and awaits review/merge.
