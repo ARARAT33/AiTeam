@@ -97,7 +97,8 @@ export async function processOne(env:Env){
   else await env.DB.prepare("UPDATE tasks SET status='failed',error=?,updated_at=?,finished_at=? WHERE id=?").bind(msg.slice(0,1500),now(),now(),task.id).run();
  }finally{for(const m of chosen)await env.DB.prepare("UPDATE models SET active_count=MAX(0,active_count-1) WHERE id=?").bind(m.id).run()}
 }
+export async function processBatch(env:Env){const batch=Math.max(1,Math.min(10,Number(env.MAX_ACTIVE_TASKS)||5));for(let i=0;i<batch;i++)await processOne(env)}
 export default {
  async fetch(req:Request,env:Env):Promise<Response>{const url=new URL(req.url);if(url.pathname.startsWith("/api/")){try{const r=await handleApi(req,env,url);r.headers.set("X-Content-Type-Options","nosniff");r.headers.set("Referrer-Policy","same-origin");r.headers.set("X-Frame-Options","DENY");return r}catch(e){return json({error:e instanceof Error?e.message:"Internal error"},500)}}return env.ASSETS.fetch(req)},
- async scheduled(_event:ScheduledController,env:Env,ctx:ExecutionContext){ctx.waitUntil(processOne(env))}
+ async scheduled(_event:ScheduledController,env:Env,ctx:ExecutionContext){ctx.waitUntil(processBatch(env))}
 };
