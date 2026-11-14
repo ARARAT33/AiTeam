@@ -29,7 +29,7 @@ async function auth(req:Request,env:Env,url:URL):Promise<Response|null>{
  if(url.pathname==="/api/auth/logout"&&req.method==="POST")return new Response(JSON.stringify({ok:true}),{headers:{"Content-Type":"application/json","Set-Cookie":clearCookie("awe_session")}});
  return null;
 }
-async function api(req:Request,env:Env,url:URL):Promise<Response>{
+export async function handleApi(req:Request,env:Env,url:URL):Promise<Response>{
  const a=await auth(req,env,url);if(a)return a;
  const login=await admin(req,env);if(!login)return json({error:"Authentication required"},401);
  if(url.pathname==="/api/health")return json({ok:true,service:"AWE AI Workforce",time:now()});
@@ -74,7 +74,7 @@ async function api(req:Request,env:Env,url:URL):Promise<Response>{
  return json({error:"Not found"},404);
 }
 async function event(env:Env,id:string,agent:string,kind:string,detail:string){await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,?,?,?)").bind(randomId(),id,agent,kind,detail.slice(0,3500),now()).run()}
-async function processOne(env:Env){
+export async function processOne(env:Env){
  const limit=Math.max(1,Number(env.MAX_ACTIVE_TASKS)||5),active=await env.DB.prepare("SELECT COUNT(*) count FROM tasks WHERE status='running'").first<{count:number}>();if((active?.count||0)>=limit)return;
  const task=await env.DB.prepare("SELECT * FROM tasks WHERE status='queued' ORDER BY priority DESC,created_at ASC LIMIT 1").first<TaskRow>();if(!task)return;
  const claim=await env.DB.prepare("UPDATE tasks SET status='running',attempts=attempts+1,started_at=?,updated_at=? WHERE id=? AND status='queued'").bind(now(),now(),task.id).run();if(!claim.meta.changes)return;
@@ -98,6 +98,6 @@ async function processOne(env:Env){
  }finally{for(const m of chosen)await env.DB.prepare("UPDATE models SET active_count=MAX(0,active_count-1) WHERE id=?").bind(m.id).run()}
 }
 export default {
- async fetch(req:Request,env:Env):Promise<Response>{const url=new URL(req.url);if(url.pathname.startsWith("/api/")){try{const r=await api(req,env,url);r.headers.set("X-Content-Type-Options","nosniff");r.headers.set("Referrer-Policy","same-origin");r.headers.set("X-Frame-Options","DENY");return r}catch(e){return json({error:e instanceof Error?e.message:"Internal error"},500)}}return env.ASSETS.fetch(req)},
+ async fetch(req:Request,env:Env):Promise<Response>{const url=new URL(req.url);if(url.pathname.startsWith("/api/")){try{const r=await handleApi(req,env,url);r.headers.set("X-Content-Type-Options","nosniff");r.headers.set("Referrer-Policy","same-origin");r.headers.set("X-Frame-Options","DENY");return r}catch(e){return json({error:e instanceof Error?e.message:"Internal error"},500)}}return env.ASSETS.fetch(req)},
  async scheduled(_event:ScheduledController,env:Env,ctx:ExecutionContext){ctx.waitUntil(processOne(env))}
 };
