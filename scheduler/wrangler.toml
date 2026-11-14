@@ -1,0 +1,13 @@
+name = "awe-ai-workforce-scheduler"
+main = "index.ts"
+compatibility_date = "2026-11-15"
+compatibility_flags = ["nodejs_compat"]
+[triggers]
+crons = ["*/1 * * * *"]
+[[d1_databases]]
+binding = "DB"
+database_name = "awe-workforce"
+database_id = "REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID"
+[vars]
+MAX_TASK_ATTEMPTS = "3"
+MAX_ACTIVE_TASKS = "5"
