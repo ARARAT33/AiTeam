@@ -5,7 +5,7 @@ import {runTeam} from "./agents";
 async function readBody(req:Request){try{return await req.json() as Record<string,any>}catch{return {}}}
 async function admin(req:Request,env:Env){const login=await verifySession(env,cookie(req,"awe_session"));return login&&login.toLowerCase()===(env.ADMIN_GITHUB_LOGIN||"araratavetisyan777999").toLowerCase()?login:null}
 function clearCookie(name:string){return name+"=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"}
-function safeUrl(value:string){try{const u=new URL(value);return u.protocol==="https:"&&!["localhost","127.0.0.1"].includes(u.hostname)?u.toString().replace(/\\/$/,""):null}catch{return null}}
+function safeUrl(value:string){try{const u=new URL(value);if(u.protocol!=="https:"||["localhost","127.0.0.1"].includes(u.hostname))return null;const out=u.toString();return out.endsWith("/")?out.slice(0,-1):out}catch{return null}}
 async function auth(req:Request,env:Env,url:URL):Promise<Response|null>{
  if(url.pathname==="/api/auth/login"){
   if(!env.GITHUB_CLIENT_ID||!env.GITHUB_CLIENT_SECRET||!env.SESSION_SECRET)return json({error:"GitHub OAuth secrets are not configured"},503);
