@@ -6,7 +6,7 @@ pages_build_output_dir = "./public"
 [[d1_databases]]
 binding = "DB"
 database_name = "awe-workforce"
-database_id = "REPLACE_WITH_CLOUDFLARE_D1_DATABASE_ID"
+database_id = "e2e4e5cf-eee9-4f70-8407-50f8fc8b986f"
 
 [vars]
 ADMIN_GITHUB_LOGIN = "araratavetisyan777999"
