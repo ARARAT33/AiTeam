@@ -1,5 +1,5 @@
 name = "awe-ai-workforce-scheduler"
-main = "index.ts"
+main = "worker.js"
 compatibility_date = "2026-11-14"
 compatibility_flags = ["nodejs_compat"]
 [triggers]
