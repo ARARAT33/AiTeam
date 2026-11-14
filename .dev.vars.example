@@ -1,0 +1,4 @@
+GITHUB_CLIENT_ID=replace-me
+GITHUB_CLIENT_SECRET=replace-me
+SESSION_SECRET=generate-a-long-random-secret
+APP_ENCRYPTION_KEY=generate-a-32-byte-hex-key
