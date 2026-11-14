@@ -1,22 +1,27 @@
 # AWE AI Workforce
 
-Cloud-first multi-agent workforce foundation for ARARAT33. This repository includes a private GitHub-OAuth dashboard, Cloudflare Pages API functions, D1 persistence, a Cron-driven queue worker, encrypted model credentials, quota-aware model selection, Director/Worker/QA orchestration, task events, memory and a declarative custom-plugin registry.
+Cloud-first multi-agent workforce foundation for ARARAT33. Includes a private GitHub-OAuth dashboard, Cloudflare Pages API functions, D1 persistence, a Cron-driven queue worker, encrypted model credentials, quota-aware model selection, Director/Worker/QA orchestration, task events, memory and a declarative custom-plugin registry.
 
-## Deploy
+## Cloudflare deployment
 
 1. Create a Cloudflare D1 database named awe-workforce.
-2. Replace the D1 database ID in wrangler.toml and scheduler/wrangler.toml.
-3. Create a GitHub OAuth App with callback URL https://YOUR-PROJECT.pages.dev/api/auth/callback and read:user scope.
-4. Set Pages and Worker secrets: GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SESSION_SECRET and APP_ENCRYPTION_KEY. Use long random values; keep APP_ENCRYPTION_KEY stable.
-5. Set ADMIN_GITHUB_LOGIN to araratavetisyan777999 and update APP_URL / GITHUB_CALLBACK_URL in wrangler.toml.
-6. Initialize D1: npx wrangler d1 execute awe-workforce --remote --file=./schema.sql
-7. Deploy Pages: npx wrangler pages deploy ./public --project-name=awe-ai-workforce. Configure the Pages project to use wrangler.toml and bind D1 as DB.
-8. Deploy the Cron worker: cd scheduler && npx wrangler deploy. Add the same D1 binding and secret values to this Worker.
+2. Replace the D1 database ID in both wrangler.toml and scheduler/wrangler.toml.
+3. Create a GitHub OAuth App. Set its callback URL to https://YOUR-PROJECT.pages.dev/api/auth/callback and request read:user.
+4. Create a Cloudflare Pages project named awe-ai-workforce. Use public as the build output directory and the repository root as the project root. Bind the D1 database to the Pages project as DB.
+5. Set Pages variables ADMIN_GITHUB_LOGIN=araratavetisyan777999, APP_URL and GITHUB_CALLBACK_URL.
+6. Add Pages secrets GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SESSION_SECRET and APP_ENCRYPTION_KEY. Use long random secrets; APP_ENCRYPTION_KEY must remain stable.
+7. Initialize D1 from the repository root: npx wrangler d1 execute awe-workforce --remote --file=./schema.sql
+8. Deploy Pages: npm install && npm run deploy.
+9. Deploy the separate scheduler: cd scheduler && npx wrangler deploy. Configure its DB binding to the same D1 database and set APP_ENCRYPTION_KEY as a Worker secret. The scheduler does not need GitHub OAuth secrets.
+
+## Local development
+
+npm install && npm run dev. Configure local D1 and a separate GitHub OAuth App with a localhost callback. The secure session cookie is marked Secure, so use HTTPS or a local setup that supports secure cookies.
 
 ## Models
 
-In the dashboard, add an OpenAI-compatible provider endpoint, model ID and API key. Keys are encrypted at rest. Daily limits and concurrency can be set per model. OpenAI API billing is separate from ChatGPT subscriptions.
+In the dashboard, add an OpenAI-compatible provider endpoint, model ID and API key. Keys are encrypted at rest. Daily request limits and concurrency can be edited per model. Calls are counted against each model's daily quota. Providers with OpenAI-compatible chat completions endpoints can be added without changing the orchestration core.
 
 ## Important limitations
 
-Free tiers have quotas and do not guarantee unlimited 24/7 inference. ChatGPT consumer-plan limits are not exposed through a supported third-party API; this project does not scrape ChatGPT login sessions or collect passwords. The current orchestration is a Director/Worker/QA text workflow, not yet arbitrary browser control, desktop automation, or autonomous software deployment. See SECURITY.md and docs/ARCHITECTURE.md.
+Free tiers have quotas and do not guarantee unlimited 24/7 inference. ChatGPT consumer-plan limits are not exposed through a supported third-party API; this project does not scrape ChatGPT login sessions or collect passwords. The current orchestration is a Director/Worker/QA text workflow, not yet arbitrary browser control, desktop automation, custom executable plugins, or autonomous software deployment. OAuth connectors for external websites and apps are a later implementation stage. See SECURITY.md and docs/ARCHITECTURE.md.
