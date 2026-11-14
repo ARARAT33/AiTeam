@@ -85,7 +85,7 @@ export async function processOne(env:Env){
   const rows=await env.DB.prepare("SELECT * FROM models WHERE enabled=1 AND daily_used<daily_limit AND active_count<max_concurrency ORDER BY priority DESC,(daily_limit-daily_used) DESC LIMIT 8").all<ModelRow>();
   if(!rows.results.length)throw new Error("No enabled model has remaining quota and available concurrency.");
   chosen=rows.results.slice(0,3);
-  for(const m of chosen)await env.DB.prepare("UPDATE models SET active_count=active_count+1,daily_used=daily_used+1 WHERE id=?").bind(m.id).run();
+  for(const m of chosen)await env.DB.prepare("UPDATE models SET active_count=active_count+1 WHERE id=?").bind(m.id).run();
   const mem=await env.DB.prepare("SELECT content FROM memories ORDER BY created_at DESC LIMIT 8").all<{content:string}>();
   const result=await runTeam(env,chosen,task.prompt,mem.results.map(x=>x.content));
   await event(env,task.id,"planner","completed",result.plan);await event(env,task.id,"worker","completed",result.work);await event(env,task.id,"reviewer","completed",result.review);
