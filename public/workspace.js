@@ -29,7 +29,7 @@ async function streamChat(payload){
   if(event.type==="error"){output.textContent=event.error||"Streaming failed";throw Error(event.error||"Streaming failed")}
  };
  while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split(/\r?\n/);buffer=lines.pop()||"";for(const line of lines)handle(line)}
- if(buffer)handle(buffer);
+ buffer+=decoder.decode();if(buffer)handle(buffer);
  if(!result)throw Error("The model stream ended before a final response was received");
  return result;
 }
