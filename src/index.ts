@@ -2,10 +2,10 @@ import type {Env,ModelRow,TaskRow} from "./types";
 import {cookie,verifySession,signSession,encryptSecret,now,randomId,json} from "./security";
 import {runTeam} from "./agents";
 
-async function readBody(req:Request){try{return await req.json() as Record<string,any>}catch{return {}}}
+async function readBody(req:Request){try{const raw=await req.text();if(raw.length>20000)return {};return JSON.parse(raw) as Record<string,any>}catch{return {}}}
 async function admin(req:Request,env:Env){const login=await verifySession(env,cookie(req,"awe_session"));return login&&login.toLowerCase()===(env.ADMIN_GITHUB_LOGIN||"ARARAT33").toLowerCase()?login:null}
 function clearCookie(name:string){return name+"=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"}
-function safeUrl(value:string){try{const u=new URL(value);if(u.protocol!=="https:"||["localhost","127.0.0.1"].includes(u.hostname))return null;const out=u.toString();return out.endsWith("/")?out.slice(0,-1):out}catch{return null}}
+function safeUrl(value:string){try{if(value.length>2048)return null;const u=new URL(value);const host=u.hostname.toLowerCase();if(u.protocol!=="https:"||u.username||u.password||u.search||u.hash||u.port&&u.port!=="443"||host==="localhost"||host.endsWith(".localhost")||host.endsWith(".local")||host.endsWith(".internal")||host.includes(":")||/^\d{1,3}(\.\d{1,3}){3}$/.test(host))return null;const out=u.toString();return out.endsWith("/")?out.slice(0,-1):out}catch{return null}}
 async function auth(req:Request,env:Env,url:URL):Promise<Response|null>{
  if(url.pathname==="/api/auth/login"){
   if(!env.GITHUB_CLIENT_ID||!env.GITHUB_CLIENT_SECRET||!env.SESSION_SECRET)return json({error:"GitHub OAuth secrets are not configured"},503);
@@ -59,7 +59,7 @@ export async function handleApi(req:Request,env:Env,url:URL):Promise<Response>{
  }
  if(url.pathname.startsWith("/api/models/")&&req.method==="PATCH"){
   const id=url.pathname.split("/").pop()!,d=await readBody(req),keys=["enabled","priority","daily_limit","max_concurrency","name"],sets:string[]=[],vals:any[]=[];
-  for(const k of keys)if(d[k]!==undefined){sets.push(k+"=?");vals.push(k==="enabled"?(d[k]?1:0):k==="name"?String(d[k]).slice(0,80):Math.max(0,Number(d[k])||0))}
+  for(const k of keys)if(d[k]!==undefined){sets.push(k+"=?");vals.push(k==="enabled"?(d[k]?1:0):k==="name"?String(d[k]).slice(0,80):Math.max(k==="priority"?0:1,Number(d[k])||0))}
   if(!sets.length)return json({error:"No supported fields"},400);sets.push("updated_at=?");vals.push(now(),id);
   await env.DB.prepare("UPDATE models SET "+sets.join(",")+" WHERE id=?").bind(...vals).run();return json({ok:true});
  }
