@@ -30,6 +30,20 @@ async function role(env,models,start,messages,tokens){
  for(let i=0;i<models.length;i++){const model=models[(start+i)%models.length];try{return await call(env,model,messages,tokens)}catch(e){errors.push(model.name+": "+String(e?.message||e))}}
  throw new Error("All model fallbacks failed: "+errors.join(" | ").slice(0,1200));
 }
+function parsePlan(raw,prompt,maxAgents){
+ try{
+  const candidate=raw.match(/\{[\s\S]*\}/)?.[0];
+  if(candidate){
+   const parsed=JSON.parse(candidate);
+   const agents=(Array.isArray(parsed.agents)?parsed.agents:[]).map(a=>({role:String(a.role||"specialist").slice(0,60),task:String(a.task||"").slice(0,2400)})).filter(a=>a.task.trim()).slice(0,maxAgents);
+   if(agents.length)return {plan:JSON.stringify(parsed,null,2),agents};
+  }
+ }catch{}
+ return {plan:raw,agents:[
+  {role:"implementer",task:"Complete the requested outcome with concrete deliverables: "+prompt},
+  {role:"independent_checker",task:"Independently verify the requested outcome, identify omissions and propose corrections: "+prompt}
+ ].slice(0,maxAgents)};
+}
 async function event(env,task,agent,type,detail){
  await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,?,?,?)").bind(id(),task,agent,type,String(detail).slice(0,3500),iso()).run();
 }
@@ -52,13 +66,16 @@ async function processOne(env){
   const memories=await env.DB.prepare("SELECT content FROM memories ORDER BY created_at DESC LIMIT 8").all();
   const context=memories.results.map(x=>x.content).join("\n---\n");
   const memory=context?"\nRelevant prior memory:\n"+context:"";
-  const plan=await role(env,chosen,0,[{role:"system",content:"You are the AWE Workforce Director. Produce an execution plan, deliverables and risks. Do not claim unperformed actions."},{role:"user",content:task.prompt+memory}],1200);
-  const work=await role(env,chosen,1%chosen.length,[{role:"system",content:"You are a specialist worker. Execute the plan concretely and state limitations honestly."},{role:"user",content:"Request:\n"+task.prompt+"\nDirector plan:\n"+plan+memory}],3000);
-  const review=await role(env,chosen,2%chosen.length,[{role:"system",content:"You are independent QA. Find omissions, uncertainty and security issues, then provide the improved final deliverable. Do not reveal hidden reasoning."},{role:"user",content:"Request:\n"+task.prompt+"\nPlan:\n"+plan+"\nWorker output:\n"+work}],2400);
-  await event(env,task.id,"planner","completed",plan);
-  await event(env,task.id,"worker","completed",work);
+  const rawPlan=await role(env,chosen,0,[{role:"system",content:"You are the AWE Workforce Director. Decompose the request into independent agent tasks. Return ONLY valid JSON: {objective:string, agents:[{role:string,task:string}], risks:string[]}. Use 2-4 complementary roles when useful, no more than 4. Each task must be concrete. Never claim actions not performed."},{role:"user",content:task.prompt+memory}],1500);
+  const maxAgents=chosen.length===1?2:Math.min(3,chosen.length),parsed=parsePlan(rawPlan,task.prompt,maxAgents),specs=parsed.agents.slice(0,maxAgents);
+  const execute=async(spec,index)=>({role:spec.role,output:await role(env,chosen,index%chosen.length,[{role:"system",content:"You are a specialist agent in a collaborative AI workforce. Execute only your assigned subtask, produce concrete outputs, cite uncertainty, and do not claim external actions."},{role:"user",content:"Overall request:\\n"+task.prompt+"\\nYour assigned role: "+spec.role+"\\nYour subtask:\\n"+spec.task+memory}],2200)});
+  const agents=chosen.length===1?await (async()=>{const out=[];for(let i=0;i<specs.length;i++)out.push(await execute(specs[i],i));return out})():await Promise.all(specs.map((spec,i)=>execute(spec,i)));
+  const work=agents.map(a=>"## "+a.role+"\\n"+a.output).join("\\n\\n");
+  const review=await role(env,chosen,Math.max(0,chosen.length-1),[{role:"system",content:"You are the independent QA lead. Review all specialist outputs against the original request. Resolve conflicts, identify missing requirements and security risks, then provide one coherent final deliverable. Do not reveal hidden reasoning."},{role:"user",content:"Original request:\\n"+task.prompt+"\\nDirector plan:\\n"+parsed.plan+"\\nSpecialist outputs:\\n"+work}],2600);
+  await event(env,task.id,"planner","completed",parsed.plan);
+  for(const agent of agents)await event(env,task.id,agent.role,"completed",agent.output);
   await event(env,task.id,"reviewer","completed",review);
-  await env.DB.prepare("UPDATE tasks SET status='completed',result=?,error=NULL,updated_at=?,finished_at=? WHERE id=?").bind(JSON.stringify({plan,work,review}),iso(),iso(),task.id).run();
+  await env.DB.prepare("UPDATE tasks SET status='completed',result=?,error=NULL,updated_at=?,finished_at=? WHERE id=?").bind(JSON.stringify({plan:parsed.plan,work,review,agents}),iso(),iso(),task.id).run();
   await env.DB.prepare("INSERT INTO memories (id,task_id,kind,content,created_at) VALUES (?,?, 'task_summary', ?,?)").bind(id(),task.id,(task.title+": "+review).slice(0,5000),iso()).run();
  }catch(error){
   const message=String(error?.message||error);
