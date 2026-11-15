@@ -37,3 +37,25 @@ The owner dashboard now includes persistent multi-conversation chat, D1-backed f
 The assistant can create and edit files in its isolated project workspace and show HTML previews. These are drafts, not production source changes. Custom plugins remain declarative; browser automation, external OAuth integrations and autonomous production deployment are not yet implemented.
 
 To enable AI-proposed source changes, add a fine-grained `GITHUB_REPO_TOKEN` secret to Cloudflare Pages (Preview and Production), restricted to this repository with Contents read/write, Pull requests read/write and Metadata read. The assistant creates PRs only; it does not merge or deploy them.
+## Chat-first workspace and autonomous operations
+
+After GitHub owner login, the application opens directly into Chat. The left navigation provides conversation history, AI Library (generated workspace files), My files (uploads), Plugins & MCPs, Skills, Agent teams, Projects, Scheduled tasks and Settings. The chat workspace supports Chat, Work, Agent and Autonomous modes, explicit model/team/project selection, file attachments, selected tools/skills and an automatic sandboxed HTML preview with open/download actions.
+
+- Chat uses one selected model or the automatic highest-priority available model.
+- Work / Agent fan out proposals to the selected team or up to eight enabled models in parallel, synthesize the result, and run up to five independent review rounds. Unanimity is reported explicitly; if reviewers disagree after the configured limit, the result is marked not unanimous.
+- Autonomous creates a persistent background task in the scheduler queue. Recurring schedules can be created in Scheduled tasks and are dispatched by the minute Cron Worker.
+- Agent teams store selected model IDs and a bounded consensus-round setting. The AI can create a team through a confirmation-gated tool.
+- Projects store reusable instructions and can be attached as context to chat requests.
+- Skills store reusable prompt instructions and can be attached to a chat.
+- MCPs support remote Streamable HTTP server registration, encrypted bearer credentials and tool discovery. Every discovered tool has an independent allow/confirmation setting. The remote MCP service must be reachable and compatible with the supported protocol.
+- Plugins currently store declarative manifests only; arbitrary plugin code is not executed.
+
+### Database migration
+
+Apply migrations/0004_workspace_product.sql to the existing D1 database before deploying this version. For a fresh local database, schema.sql now includes the chat and workspace tables as well as the new product tables.
+
+After merging, redeploy scheduler/worker.js from the scheduler directory. The scheduler now checks due recurring tasks every minute and places them into the persistent task queue. Background model execution still requires a configured APP_ENCRYPTION_KEY and at least one enabled model with available quota.
+
+### Tool safety
+
+Tool access is opt-in per tool. Tools marked as confirmation-required prompt before each chat execution. MCP tokens are encrypted at rest. AI-generated HTML remains in a separate D1-backed workspace and is previewed in an iframe with script sandboxing and a restrictive Content Security Policy. Source-repository modifications are proposed as GitHub PRs only; autonomous merging and production deployment are intentionally disabled.
