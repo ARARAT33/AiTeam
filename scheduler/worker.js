@@ -19,7 +19,7 @@ async function call(env,model,messages,tokens){
  const key=await decrypt(env,model.encrypted_api_key);
  const base=model.base_url.endsWith("/")?model.base_url.slice(0,-1):model.base_url;
  const endpoint=base.endsWith("/chat/completions")?base:base+"/chat/completions";
- const response=await fetch(endpoint,{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:model.model_id,messages,temperature:.25,max_tokens:tokens})});
+ const response=await fetch(endpoint,{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:model.model_id,messages,temperature:.25,max_tokens:tokens}),signal:AbortSignal.timeout(45000)});
  if(!response.ok)throw new Error(model.provider+" HTTP "+response.status+": "+(await response.text()).slice(0,700));
  const data=await response.json(),content=data?.choices?.[0]?.message?.content;
  if(typeof content!=="string"||!content.trim())throw new Error("Provider returned empty output");
