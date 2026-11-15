@@ -1,6 +1,6 @@
 # AWE AI Workforce
 
-Cloud-first multi-agent workforce foundation for ARARAT33. Includes a private GitHub-OAuth dashboard, Cloudflare Pages API functions, D1 persistence, a Cron-driven queue worker, encrypted model credentials, quota-aware model selection, Director/Worker/QA orchestration, task events, memory and a declarative custom-plugin registry.
+Cloud-first multi-agent workforce foundation for ARARAT33. Includes a private GitHub-OAuth dashboard, Cloudflare Pages API functions, D1 persistence, a Cron-driven queue worker, encrypted model credentials, quota-aware model selection, Director/Worker/QA orchestration, task events, memory, retry/cancel controls, an administrative audit trail and a declarative custom-plugin registry.
 
 ## Cloudflare deployment
 
@@ -21,6 +21,10 @@ npm install && npm run dev. Configure local D1 and a separate GitHub OAuth App w
 ## Models
 
 In the dashboard, add an OpenAI-compatible provider endpoint, model ID and API key. Keys are encrypted at rest. Daily request limits and concurrency can be edited per model. Calls are counted against each model's daily quota. Providers with OpenAI-compatible chat completions endpoints can be added without changing the orchestration core.
+
+## Security
+
+The dashboard is owner-only: GitHub OAuth must match both `ARARAT33` and the verified primary email `araratavetisyan777999@gmail.com`. Sessions use signed host-only cookies; mutating requests are same-origin only; provider keys are encrypted at rest; admin changes are audited. The interface is light-theme only. See `SECURITY.md`.
 
 ## Important limitations
 
