@@ -9,3 +9,9 @@
 - Owner actions (model, task and plugin changes) are written to the append-only application audit log in D1.
 - Custom plugin definitions are declarative metadata. They do not execute uploaded code or arbitrary commands. External side effects require scoped connectors, approval, audit logs and revocation.
 - Enable HTTPS, keep the OAuth callback exact, restrict repository access if source confidentiality matters, and review Cloudflare account security.
+
+- Chat history, uploaded files and workspace drafts are owner-session protected. Uploaded files are limited to 1.2 MB each and are stored in D1; do not upload secrets or highly sensitive documents.
+- AI workspace tools are restricted to a path-validated D1-backed draft area. They cannot edit production source code, deployment settings, environment secrets or Cloudflare resources.
+- Generated HTML previews run in a sandboxed iframe without same-origin privilege. Preview CSP disables network connections, forms, external frames and object embedding. Never treat generated preview code as trusted.
+- The current custom plugin registry is declarative metadata only; do not enable arbitrary code execution. A future executable plugin runner must use a separate sandbox, explicit capabilities, egress allowlists, quotas, audit records and revocation.
+- Optional source self-modification uses a fine-grained GitHub token stored only as the Cloudflare Pages secret `GITHUB_REPO_TOKEN`. Scope it to this repository with Contents read/write, Pull requests read/write and Metadata read. The AI may create feature branches and pull requests only; it cannot merge or deploy them. Deployment/workflow configuration files are excluded from the allowed path set.
