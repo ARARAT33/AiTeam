@@ -6,9 +6,9 @@ Cloud-first multi-agent workforce foundation for ARARAT33. Includes a private Gi
 
 1. Create a Cloudflare D1 database named awe-workforce.
 2. Replace the D1 database ID in both wrangler.toml and scheduler/wrangler.toml.
-3. Create a GitHub OAuth App. Set its callback URL to https://YOUR-PROJECT.pages.dev/api/auth/callback and request read:user.
+3. Create a GitHub OAuth App. Set its callback URL to https://YOUR-PROJECT.pages.dev/api/auth/callback and request read:user and user:email. Only the GitHub account `ARARAT33` with the verified primary email `araratavetisyan777999@gmail.com` is accepted.
 4. Create a Cloudflare Pages project named awe-ai-workforce. Use public as the build output directory and the repository root as the project root. Bind the D1 database to the Pages project as DB.
-5. Set Pages variables ADMIN_GITHUB_LOGIN=araratavetisyan777999, APP_URL and GITHUB_CALLBACK_URL.
+5. Set Pages variables ADMIN_GITHUB_LOGIN=ARARAT33, APP_URL and GITHUB_CALLBACK_URL.
 6. Add Pages secrets GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SESSION_SECRET and APP_ENCRYPTION_KEY. Use long random secrets; APP_ENCRYPTION_KEY must remain stable.
 7. Initialize D1 from the repository root: npx wrangler d1 execute awe-workforce --remote --file=./schema.sql
 8. Deploy Pages: npm install && npm run deploy.
