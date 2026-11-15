@@ -90,6 +90,8 @@ async function processOne(env){
 export default {
  async scheduled(_event,env,ctx){
   ctx.waitUntil((async()=>{
+   const checkedAt=iso(),health={online:true,encryption_ready:!!env.APP_ENCRYPTION_KEY,checked_at:checkedAt};
+   await env.DB.prepare("INSERT INTO settings (key,value,updated_at) VALUES ('scheduler_health',?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at").bind(JSON.stringify(health),checkedAt).run();
    const cutoff=new Date(Date.now()-15*60*1000).toISOString();
    const stale=await env.DB.prepare("UPDATE tasks SET status='queued',updated_at=? WHERE status='running' AND started_at<?").bind(iso(),cutoff).run();
    if(stale.meta.changes)await env.DB.prepare("UPDATE models SET active_count=0").run();
