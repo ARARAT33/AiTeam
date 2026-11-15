@@ -59,3 +59,13 @@ After merging, redeploy scheduler/worker.js from the scheduler directory. The sc
 ### Tool safety
 
 Tool access is opt-in per tool. Tools marked as confirmation-required prompt before each chat execution. MCP tokens are encrypted at rest. AI-generated HTML remains in a separate D1-backed workspace and is previewed in an iframe with script sandboxing and a restrictive Content Security Policy. Source-repository modifications are proposed as GitHub PRs only; autonomous merging and production deployment are intentionally disabled.
+
+
+## AI-managed setup and operations
+
+The AI can now prepare OpenAI-compatible model entries, register public HTTPS Streamable HTTP MCP servers and discover their tools, and create teams, projects, skills, recurring schedules and declarative plugin manifests from natural-language requests inside Chat. These setup tools are confirmation-gated and must be selected in the chat Tools picker.
+
+- Model setup creates a disabled connection draft. The owner enters the provider API key only in that model's password field under Settings → Models & APIs; the key is encrypted at rest. A model cannot be enabled until a key is saved.
+- MCP setup can discover remote tools. The server remains disabled and every discovered tool starts disabled with confirmation required. If the server needs authentication, the owner saves its bearer token in the MCP card's password field; it is encrypted at rest. The owner must enable the server and each trusted tool explicitly.
+- The assistant can create and manage workspace artifacts and persistent resources, but it cannot grant itself tool permissions, read secret values, execute arbitrary plugin code, merge its own source PRs or deploy production.
+- Remote MCP calls initialize a protocol session before tool execution. Endpoints must be public HTTPS URLs; redirects, IP-literal hosts and local/private hostnames are rejected.

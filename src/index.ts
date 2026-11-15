@@ -52,7 +52,7 @@ export async function handleApi(req:Request,env:Env,url:URL):Promise<Response>{
   return json({tasks:tasks.results,models,plugins,operator:login,scheduler,security:{ownerIdentity:!!env.ADMIN_GITHUB_LOGIN&&!!env.ADMIN_GITHUB_EMAIL,githubOAuth:!!env.GITHUB_CLIENT_ID&&!!env.GITHUB_CLIENT_SECRET,sessionSigning:!!env.SESSION_SECRET,providerEncryption:!!env.APP_ENCRYPTION_KEY}});
  }
  if(url.pathname==="/api/models"&&req.method==="GET"){
-  const r=await env.DB.prepare("SELECT id,name,provider,model_id,base_url,enabled,priority,daily_limit,daily_used,usage_day,max_concurrency,active_count FROM models ORDER BY priority DESC").all();return json({models:r.results});
+  const r=await env.DB.prepare("SELECT id,name,provider,model_id,base_url,enabled,priority,daily_limit,daily_used,usage_day,max_concurrency,active_count,CASE WHEN encrypted_api_key='PENDING_API_KEY' THEN 0 ELSE 1 END AS key_ready FROM models ORDER BY priority DESC").all();return json({models:r.results});
  }
  if(url.pathname==="/api/models"&&req.method==="POST"){
   const d=await readBody(req),name=String(d.name||"").slice(0,80),provider=String(d.provider||"custom").slice(0,40),model=String(d.model_id||"").slice(0,160),base=safeUrl(String(d.base_url||"")),key=String(d.api_key||"");
@@ -64,7 +64,7 @@ export async function handleApi(req:Request,env:Env,url:URL):Promise<Response>{
  }
  if(url.pathname.startsWith("/api/models/")&&req.method==="PATCH"){
   const id=url.pathname.split("/").pop()!,d=await readBody(req),keys=["enabled","priority","daily_limit","max_concurrency","name"],sets:string[]=[],vals:any[]=[];
-  for(const k of keys)if(d[k]!==undefined){sets.push(k+"=?");vals.push(k==="enabled"?(d[k]?1:0):k==="name"?String(d[k]).slice(0,80):Math.max(k==="priority"?0:1,Number(d[k])||0))}
+  if(d.enabled===true){const model=await env.DB.prepare("SELECT encrypted_api_key FROM models WHERE id=?").bind(id).first<{encrypted_api_key:string}>();if(!model)return json({error:"Model not found"},404);if(model.encrypted_api_key==="PENDING_API_KEY")return json({error:"Add and save this model's API key before enabling it."},409)}for(const k of keys)if(d[k]!==undefined){sets.push(k+"=?");vals.push(k==="enabled"?(d[k]?1:0):k==="name"?String(d[k]).slice(0,80):Math.max(k==="priority"?0:1,Number(d[k])||0))}
   if(typeof d.api_key==="string"&&d.api_key.length){if(d.api_key.length<8||d.api_key.length>4096)return json({error:"API key must be 8–4096 characters"},400);sets.push("encrypted_api_key=?");vals.push(await encryptSecret(env,d.api_key))}
   if(!sets.length)return json({error:"No supported fields"},400);sets.push("updated_at=?");vals.push(now(),id);
   await env.DB.prepare("UPDATE models SET "+sets.join(",")+" WHERE id=?").bind(...vals).run();await audit(env,login,"model.updated","model",id,Object.keys(d).join(","));return json({ok:true});
