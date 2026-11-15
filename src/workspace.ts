@@ -87,7 +87,7 @@ async function streamCompletion(env:Env,m:ModelRow,messages:any[],onDelta:(value
  const reader=res.body.getReader(),decoder=new TextDecoder();let buffer="",full="";
  const consume=(line:string)=>{const value=line.trim();if(!value.startsWith("data:"))return;const data=value.slice(5).trim();if(!data||data==="[DONE]")return;try{const packet:any=JSON.parse(data),delta=packet?.choices?.[0]?.delta?.content;if(typeof delta==="string"&&delta){full+=delta;onDelta(delta)}else if(Array.isArray(delta)){for(const part of delta){if(typeof part?.text==="string"){full+=part.text;onDelta(part.text)}}}}catch{}};
  while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split(/\r?\n/);buffer=lines.pop()||"";for(const line of lines)consume(line)}
- if(buffer)consume(buffer);
+ buffer+=decoder.decode();if(buffer)consume(buffer);
  if(!full.trim())throw new Error("Provider returned no streamed text");
  return full;
 }
