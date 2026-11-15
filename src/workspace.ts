@@ -83,6 +83,7 @@ async function streamCompletion(env:Env,m:ModelRow,messages:any[],onDelta:(value
  const res=await fetch(endpoint,{method:"POST",headers:{"Authorization":"Bearer "+key,"Content-Type":"application/json","Accept":"text/event-stream"},body:JSON.stringify({model:m.model_id,messages,temperature:.3,max_tokens:3000,stream:true}),signal:AbortSignal.timeout(120000)});
  if(!res.ok)throw new Error("Provider HTTP "+res.status+": "+(await res.text()).slice(0,700));
  if(!res.body)throw new Error("Provider did not return a readable response stream");
+ if(!(res.headers.get("content-type")||"").includes("text/event-stream")){const data:any=await res.json(),text=String(data?.choices?.[0]?.message?.content||"");if(!text.trim())throw new Error("Provider returned an empty non-streaming response");onDelta(text);return text}
  const reader=res.body.getReader(),decoder=new TextDecoder();let buffer="",full="";
  const consume=(line:string)=>{const value=line.trim();if(!value.startsWith("data:"))return;const data=value.slice(5).trim();if(!data||data==="[DONE]")return;try{const packet:any=JSON.parse(data),delta=packet?.choices?.[0]?.delta?.content;if(typeof delta==="string"&&delta){full+=delta;onDelta(delta)}else if(Array.isArray(delta)){for(const part of delta){if(typeof part?.text==="string"){full+=part.text;onDelta(part.text)}}}}catch{}};
  while(true){const {value,done}=await reader.read();if(done)break;buffer+=decoder.decode(value,{stream:true});const lines=buffer.split(/\r?\n/);buffer=lines.pop()||"";for(const line of lines)consume(line)}
