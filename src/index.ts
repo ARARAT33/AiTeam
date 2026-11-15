@@ -5,7 +5,7 @@ import {runTeam} from "./agents";
 async function readBody(req:Request){try{const raw=await req.text();if(raw.length>20000)return {};return JSON.parse(raw) as Record<string,any>}catch{return {}}}
 async function admin(req:Request,env:Env){const login=await verifySession(env,cookie(req,"__Host-awe_session"));return login&&login.toLowerCase()===(env.ADMIN_GITHUB_LOGIN||"ARARAT33").toLowerCase()?login:null}
 function clearCookie(name:string){return name+"=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"}
-function safeUrl(value:string){try{if(value.length>2048)return null;const u=new URL(value);const host=u.hostname.toLowerCase();if(u.protocol!=="https:"||u.username||u.password||u.search||u.hash||u.port&&u.port!=="443"||host==="localhost"||host.endsWith(".localhost")||host.endsWith(".local")||host.endsWith(".internal")||host.includes(":")||/^\d{1,3}(\.\d{1,3}){3}$/.test(host))return null;const out=u.toString();return out.endsWith("/")?out.slice(0,-1):out}catch{return null}}
+function safeUrl(value:string){try{if(value.length>2048)return null;const u=new URL(value);const host=u.hostname.toLowerCase();if(u.protocol!=="https:"||u.username||u.password||u.search||u.hash||u.port&&u.port!=="443"||!host.includes(".")||host==="localhost"||host.endsWith(".localhost")||host.endsWith(".local")||host.endsWith(".internal")||host.includes(":")||/^\d{1,3}(\.\d{1,3}){3}$/.test(host))return null;const out=u.toString();return out.endsWith("/")?out.slice(0,-1):out}catch{return null}}
 async function auth(req:Request,env:Env,url:URL):Promise<Response|null>{
  if(url.pathname==="/api/auth/login"){
   if(!env.GITHUB_CLIENT_ID||!env.GITHUB_CLIENT_SECRET||!env.SESSION_SECRET)return json({error:"GitHub OAuth secrets are not configured"},503);
@@ -25,9 +25,9 @@ async function auth(req:Request,env:Env,url:URL):Promise<Response|null>{
   if(!emailsResponse.ok)return json({error:"Could not verify GitHub email"},502);
   const emails:any[]=await emailsResponse.json(),expectedEmail=(env.ADMIN_GITHUB_EMAIL||"araratavetisyan777999@gmail.com").toLowerCase();
   const verified=emails.some(e=>String(e.email||"").toLowerCase()===expectedEmail&&e.verified===true&&e.primary===true);
-  if(!verified)return new Response("Access denied: verified primary GitHub email required",{status:403,headers:{"Set-Cookie":clearCookie("awe_oauth_state"),"Cache-Control":"no-store"}});
+  if(!verified)return new Response("Access denied: verified primary GitHub email required",{status:403,headers:{"Set-Cookie":clearCookie("__Host-awe_oauth_state"),"Cache-Control":"no-store"}});
   const token=await signSession(env,profile.login),h=new Headers({Location:"/", "Cache-Control":"no-store"});
-  h.append("Set-Cookie","__Host-awe_session="+token+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800");h.append("Set-Cookie",clearCookie("awe_oauth_state"));
+  h.append("Set-Cookie","__Host-awe_session="+token+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800");h.append("Set-Cookie",clearCookie("__Host-awe_oauth_state"));
   return new Response(null,{status:302,headers:h});
  }
  if(url.pathname==="/api/auth/me"){const login=await admin(req,env);return json({authenticated:!!login,login})}
