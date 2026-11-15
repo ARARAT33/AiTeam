@@ -6,6 +6,15 @@ async function refresh(){
  const [o,t,m,p,mem,audit]=await Promise.all([api("/api/overview"),api("/api/tasks"),api("/api/models"),api("/api/plugins"),api("/api/memory"),api("/api/audit")]);
  const counts=Object.fromEntries((o.tasks||[]).map(x=>[x.status,x.count]));
  $("stats").innerHTML=[["ACTIVE TASKS",(counts.queued||0)+(counts.running||0)],["COMPLETED",counts.completed||0],["AVAILABLE MODELS",m.models.length],["CUSTOM PLUGINS",p.plugins.length]].map(([a,b])=>'<div class="stat"><span>'+a+'</span><strong>'+b+'</strong></div>').join("");
+ const checks=[
+  ["Owner identity",o.security?.ownerIdentity],
+  ["GitHub OAuth",o.security?.githubOAuth],
+  ["Session signing",o.security?.sessionSigning],
+  ["Provider-key encryption",o.security?.providerEncryption],
+  ["Scheduler heartbeat",o.scheduler?.online],
+  ["Scheduler encryption key",o.scheduler?.encryptionReady]
+ ];
+ $("security-status").innerHTML=checks.map(([name,ready])=>'<div class="security-check"><span>'+esc(name)+'</span><strong class="status '+(ready?'completed':'failed')+'">'+(ready?'READY':'NEEDS SETUP')+'</strong></div>').join("");
  $("tasks").innerHTML=t.tasks.length?t.tasks.map(x=>{let parsed=null;try{parsed=x.result?JSON.parse(x.result):null}catch{}const summary=x.error||(parsed?.review)||x.prompt.slice(0,240);const agents=Array.isArray(parsed?.agents)?parsed.agents.map(a=>'<h4>'+esc(a.role||"Specialist")+'</h4><pre>'+esc(a.output||"")+'</pre>').join(""):"";const output=parsed?'<details class="task-output"><summary>Open collaborative team output</summary><h4>Director plan</h4><pre>'+esc(parsed.plan||"")+'</pre>'+agents+'<h4>Combined worker output</h4><pre>'+esc(parsed.work||"")+'</pre><h4>QA final review</h4><pre>'+esc(parsed.review||"")+'</pre></details>':'';const actions=x.status==="failed"?'<button class="ghost task-retry" data-id="'+x.id+'">Retry task</button>':x.status==="queued"?'<button class="ghost task-cancel" data-id="'+x.id+'">Cancel</button>':'';return '<article class="task-item"><div class="task-top"><strong>'+esc(x.title)+'</strong><span class="status '+esc(x.status)+'">'+esc(x.status)+'</span></div><p>'+esc(summary)+'</p>'+output+'<details class="task-events" data-id="'+x.id+'"><summary>Execution activity</summary><div class="event-list"><span class="tiny">Expand to load events.</span></div></details><div class="task-foot"><small class="tiny">'+new Date(x.created_at).toLocaleString()+' · '+x.attempts+'/'+x.max_attempts+' attempts</small>'+actions+'</div></article>'}).join(""):'<p class="tiny">No missions yet. Create the first one above.</p>';
  document.querySelectorAll(".task-retry").forEach(b=>b.addEventListener("click",async()=>{try{await api("/api/tasks/"+b.dataset.id+"/retry",{method:"POST",body:"{}"});toast("Task returned to queue");await refresh()}catch(e){toast(e.message)}}));
  document.querySelectorAll(".task-cancel").forEach(b=>b.addEventListener("click",async()=>{try{await api("/api/tasks/"+b.dataset.id+"/cancel",{method:"POST",body:"{}"});toast("Queued task cancelled");await refresh()}catch(e){toast(e.message)}}));

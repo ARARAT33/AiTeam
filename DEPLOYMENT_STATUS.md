@@ -16,7 +16,7 @@
 - D1 tables: models, tasks, task_events, memories, plugins, settings, audit_logs
 - Audit migration `migrations/0002_audit_logs.sql` applied to production D1
 - Scheduler Worker: `awe-ai-workforce-scheduler`, deployed with shared D1 binding
-- Scheduler Cron: `*/1 * * * *` (every minute)
+- Scheduler Cron: `*/1 * * * *` (every minute); heartbeat reports liveness and whether its encryption secret is configured
 - D1 currently has 0 models and 0 tasks; no user data was present during this deployment.
 
 ## Security delivered
@@ -29,6 +29,7 @@
 - Strict CSP, HSTS, frame denial, cross-origin isolation and no third-party dashboard fonts/scripts.
 - Light theme only.
 - Owner actions for models, tasks and plugins are recorded in D1 audit logs.
+- Dashboard now displays live readiness for owner identity, GitHub OAuth, session signing, provider-key encryption, scheduler heartbeat and scheduler encryption secret.
 - Provider API keys are encrypted with AES-GCM at rest; the UI supports key rotation.
 
 ## Remaining activation and product work

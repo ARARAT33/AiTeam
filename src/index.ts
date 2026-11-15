@@ -46,8 +46,10 @@ export async function handleApi(req:Request,env:Env,url:URL):Promise<Response>{
  if(url.pathname==="/api/health")return json({ok:true,service:"AWE AI Workforce",time:now()});
  if(url.pathname==="/api/audit"&&req.method==="GET"){const r=await env.DB.prepare("SELECT id,actor,action,target_type,target_id,detail,created_at FROM audit_logs ORDER BY created_at DESC LIMIT 100").all();return json({entries:r.results})}
  if(url.pathname==="/api/overview"){
-  const [tasks,models,plugins]=await Promise.all([env.DB.prepare("SELECT status,COUNT(*) count FROM tasks GROUP BY status").all(),env.DB.prepare("SELECT COUNT(*) total,SUM(enabled) enabled FROM models").first(),env.DB.prepare("SELECT COUNT(*) total,SUM(enabled) enabled FROM plugins").first()]);
-  return json({tasks:tasks.results,models,plugins,operator:login});
+  const [tasks,models,plugins,healthRow]=await Promise.all([env.DB.prepare("SELECT status,COUNT(*) count FROM tasks GROUP BY status").all(),env.DB.prepare("SELECT COUNT(*) total,SUM(enabled) enabled FROM models").first(),env.DB.prepare("SELECT COUNT(*) total,SUM(enabled) enabled FROM plugins").first(),env.DB.prepare("SELECT value FROM settings WHERE key='scheduler_health'").first<{value:string}>()]);
+  let scheduler={online:false,encryptionReady:false,checkedAt:null as string|null};
+  try{const h=JSON.parse(healthRow?.value||"{}");scheduler={online:h.online===true&&Date.now()-Date.parse(h.checked_at)<180000,encryptionReady:h.encryption_ready===true,checkedAt:h.checked_at||null}}catch{}
+  return json({tasks:tasks.results,models,plugins,operator:login,scheduler,security:{ownerIdentity:!!env.ADMIN_GITHUB_LOGIN&&!!env.ADMIN_GITHUB_EMAIL,githubOAuth:!!env.GITHUB_CLIENT_ID&&!!env.GITHUB_CLIENT_SECRET,sessionSigning:!!env.SESSION_SECRET,providerEncryption:!!env.APP_ENCRYPTION_KEY}});
  }
  if(url.pathname==="/api/models"&&req.method==="GET"){
   const r=await env.DB.prepare("SELECT id,name,provider,model_id,base_url,enabled,priority,daily_limit,daily_used,usage_day,max_concurrency,active_count FROM models ORDER BY priority DESC").all();return json({models:r.results});

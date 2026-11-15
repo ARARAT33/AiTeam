@@ -1,7 +1,7 @@
 # AWE AI Workforce architecture
 
 ## Cloud runtime
-Cloudflare Pages serves the dashboard and Pages Functions handle authenticated APIs. A separate Cloudflare Worker Cron Trigger wakes the persistent dispatcher every minute. Both services share a D1 database. Browser closure does not stop queued work.
+Cloudflare Pages serves the dashboard and Pages Functions handle authenticated APIs. A separate Cloudflare Worker Cron Trigger wakes the persistent dispatcher every minute. It also writes a D1 heartbeat containing scheduler liveness and a boolean encryption-readiness signal (never secret values). The admin dashboard reads this heartbeat alongside Pages-side OAuth, session and encryption configuration checks. Both services share a D1 database. Browser closure does not stop queued work.
 
 ## Task lifecycle
 Tasks move through queued, running, completed or failed states. The dispatcher claims one task, asks a Director to return a structured agent plan, dispatches up to three specialist agents (parallel across distinct configured models, sequential when only one model is available), then sends all outputs to an independent QA lead. It stores each agent event, the combined result and a compact memory, and retries failures within a configured attempt limit.

@@ -1,6 +1,6 @@
 # AWE AI Workforce
 
-Cloud-first multi-agent workforce foundation for ARARAT33. Includes a private GitHub-OAuth dashboard, Cloudflare Pages API functions, D1 persistence, a Cron-driven queue worker, encrypted model credentials, quota-aware model selection, Director-planned multi-specialist orchestration with independent QA, task events, memory, retry/cancel controls, an administrative audit trail and a declarative custom-plugin registry.
+Cloud-first multi-agent workforce foundation for ARARAT33. Includes a private GitHub-OAuth dashboard, Cloudflare Pages API functions, D1 persistence, a Cron-driven queue worker, encrypted model credentials, quota-aware model selection, Director-planned multi-specialist orchestration with independent QA, task events, memory, retry/cancel controls, an administrative audit trail and a declarative custom-plugin registry. It also exposes live runtime/security readiness checks.
 
 ## Cloudflare deployment
 
