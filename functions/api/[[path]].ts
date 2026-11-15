@@ -13,7 +13,7 @@ export const onRequest=async(context:any)=>{
   const headers=new Headers(response.headers);
   headers.set("X-Content-Type-Options","nosniff");
   headers.set("Referrer-Policy","no-referrer");
-  headers.set("X-Frame-Options","DENY");
+  headers.set("X-Frame-Options",url.pathname==="/api/workspace/preview"?"SAMEORIGIN":"DENY");
   headers.set("Cross-Origin-Opener-Policy","same-origin");
   headers.set("Cross-Origin-Resource-Policy","same-origin");
   headers.set("Cache-Control","no-store");
