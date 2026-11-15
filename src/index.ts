@@ -71,6 +71,20 @@ export async function handleApi(req:Request,env:Env,url:URL):Promise<Response>{
   const id=randomId(),t=now();await env.DB.prepare("INSERT INTO tasks (id,title,prompt,status,priority,max_attempts,created_at,updated_at) VALUES (?,?,?,'queued',?,?,?,?)").bind(id,title,prompt,Math.min(100,Math.max(0,Number(d.priority)||50)),Math.max(1,Math.min(5,Number(env.MAX_TASK_ATTEMPTS)||3)),t,t).run();
   await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,'queued',?,?)").bind(randomId(),id,"system","Task added to persistent queue",t).run();return json({id,status:"queued"},201);
  }
+ if(url.pathname.startsWith("/api/tasks/")&&url.pathname.endsWith("/retry")&&req.method==="POST"){
+  const id=url.pathname.split("/")[3],t=now();
+  const result=await env.DB.prepare("UPDATE tasks SET status='queued',attempts=0,error=NULL,started_at=NULL,finished_at=NULL,updated_at=? WHERE id=? AND status='failed'").bind(t,id).run();
+  if(!result.meta.changes)return json({error:"Only failed tasks can be retried"},409);
+  await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,'retry_requested',?,?)").bind(randomId(),id,login,"Manual retry requested",t).run();
+  return json({ok:true,status:"queued"});
+ }
+ if(url.pathname.startsWith("/api/tasks/")&&url.pathname.endsWith("/cancel")&&req.method==="POST"){
+  const id=url.pathname.split("/")[3],t=now();
+  const result=await env.DB.prepare("UPDATE tasks SET status='cancelled',updated_at=?,finished_at=? WHERE id=? AND status='queued'").bind(t,t,id).run();
+  if(!result.meta.changes)return json({error:"Only queued tasks can be cancelled"},409);
+  await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,'cancelled',?,?)").bind(randomId(),id,login,"Queued task cancelled",t).run();
+  return json({ok:true,status:"cancelled"});
+ }
  if(url.pathname.startsWith("/api/tasks/")&&url.pathname.endsWith("/events")){const id=url.pathname.split("/")[3],r=await env.DB.prepare("SELECT agent,event,detail,created_at FROM task_events WHERE task_id=? ORDER BY created_at ASC LIMIT 200").bind(id).all();return json({events:r.results})}
  if(url.pathname.startsWith("/api/tasks/")&&req.method==="DELETE"){await env.DB.prepare("DELETE FROM tasks WHERE id=? AND status<>'running'").bind(url.pathname.split("/").pop()!).run();return json({ok:true})}
  if(url.pathname==="/api/memory"&&req.method==="GET"){const r=await env.DB.prepare("SELECT id,task_id,kind,content,created_at FROM memories ORDER BY created_at DESC LIMIT 100").all();return json({memories:r.results})}
