@@ -8,11 +8,11 @@ Cloud-first multi-agent workforce foundation for ARARAT33. Includes a private Gi
 2. Replace the D1 database ID in both wrangler.toml and scheduler/wrangler.toml.
 3. Create a GitHub OAuth App. Set its callback URL to https://YOUR-PROJECT.pages.dev/api/auth/callback and request read:user and user:email. Only the GitHub account `ARARAT33` with the verified primary email `araratavetisyan777999@gmail.com` is accepted.
 4. Create a Cloudflare Pages project named awe-ai-workforce. Use public as the build output directory and the repository root as the project root. Bind the D1 database to the Pages project as DB.
-5. Set Pages variables ADMIN_GITHUB_LOGIN=ARARAT33, APP_URL and GITHUB_CALLBACK_URL.
+5. Set Pages variables ADMIN_GITHUB_LOGIN=ARARAT33 and ADMIN_GITHUB_EMAIL=araratavetisyan777999@gmail.com, plus APP_URL and GITHUB_CALLBACK_URL.
 6. Add Pages secrets GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, SESSION_SECRET and APP_ENCRYPTION_KEY. Use long random secrets; APP_ENCRYPTION_KEY must remain stable.
 7. Initialize D1 from the repository root: npx wrangler d1 execute awe-workforce --remote --file=./schema.sql
 8. Deploy Pages: npm install && npm run deploy.
-9. Deploy the separate scheduler: cd scheduler && npx wrangler deploy. Configure its DB binding to the same D1 database and set APP_ENCRYPTION_KEY as a Worker secret. The scheduler does not need GitHub OAuth secrets.
+9. Deploy the separate scheduler: cd scheduler && npx wrangler deploy. Configure its DB binding to the same D1 database and set APP_ENCRYPTION_KEY as a Worker secret. The scheduler does not need GitHub OAuth secrets. The live Cloudflare account already has this Worker and its one-minute Cron Trigger provisioned; only its encryption secret remains to be added.
 
 ## Local development
 
