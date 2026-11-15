@@ -95,6 +95,17 @@ export default {
    const cutoff=new Date(Date.now()-15*60*1000).toISOString();
    const stale=await env.DB.prepare("UPDATE tasks SET status='queued',updated_at=? WHERE status='running' AND started_at<?").bind(iso(),cutoff).run();
    if(stale.meta.changes)await env.DB.prepare("UPDATE models SET active_count=0").run();
+   const due=(await env.DB.prepare("SELECT * FROM scheduled_tasks WHERE enabled=1 AND next_run_at<=? ORDER BY next_run_at ASC LIMIT 10").bind(checkedAt).all()).results;
+   for(const item of due){
+    const next=new Date(Date.now()+Math.max(5,Math.min(43200,Number(item.interval_minutes)||60))*60000).toISOString();
+    const claim=await env.DB.prepare("UPDATE scheduled_tasks SET next_run_at=?,last_enqueued_at=?,updated_at=? WHERE id=? AND enabled=1 AND next_run_at=?").bind(next,checkedAt,checkedAt,item.id,item.next_run_at).run();
+    if(!claim.meta.changes)continue;
+    let prompt=item.prompt;
+    if(item.project_id){const project=await env.DB.prepare("SELECT name,description,instructions FROM projects WHERE id=?").bind(item.project_id).first();if(project)prompt="PROJECT: "+project.name+"\n"+project.description+"\nPROJECT INSTRUCTIONS:\n"+project.instructions+"\n\nSCHEDULED TASK:\n"+prompt}
+    const taskId=id();
+    await env.DB.prepare("INSERT INTO tasks (id,title,prompt,status,priority,max_attempts,created_at,updated_at) VALUES (?,?,?,'queued',50,3,?,?)").bind(taskId,"[Scheduled] "+item.title,prompt,checkedAt,checkedAt).run();
+    await event(env,taskId,"scheduler","queued","Recurring schedule "+item.id+" dispatched");
+   }
    const max=Math.max(1,Math.min(10,Number(env.MAX_ACTIVE_TASKS||5)));
    for(let i=0;i<max;i++){const did=await processOne(env);if(!did)break}
   })());
