@@ -4,7 +4,7 @@
 Cloudflare Pages serves the dashboard and Pages Functions handle authenticated APIs. A separate Cloudflare Worker Cron Trigger wakes the persistent dispatcher every minute. Both services share a D1 database. Browser closure does not stop queued work.
 
 ## Task lifecycle
-Tasks move through queued, running, completed or failed states. The dispatcher claims one task, assigns Director, Worker and QA roles, stores events and a compact result memory, and retries failures within a configured attempt limit.
+Tasks move through queued, running, completed or failed states. The dispatcher claims one task, asks a Director to return a structured agent plan, dispatches up to three specialist agents (parallel across distinct configured models, sequential when only one model is available), then sends all outputs to an independent QA lead. It stores each agent event, the combined result and a compact memory, and retries failures within a configured attempt limit.
 
 ## Models and quotas
 Model records contain provider, OpenAI-compatible endpoint, model ID, encrypted API key, priority, daily request budget and concurrency cap. The scheduler chooses enabled models with available budget. Add new compatible providers without changing the orchestration core.
