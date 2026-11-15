@@ -6,9 +6,9 @@
 - Production URL: `https://awe-ai-workforce.pages.dev` (still serves the last `main` deployment until this branch is merged)
 - Latest secure/light preview: `https://feat-awe-workforce-secure-li.awe-ai-workforce.pages.dev`
 - D1 database: `awe-ai-workforce`, UUID `e2e4e5cf-eee9-4f70-8407-50f8fc8b986f`, region EEUR
-- D1 schema: initialized (models, tasks, task_events, memories, plugins, settings)
+- D1 schema: initialized (models, tasks, task_events, memories, plugins, settings, audit_logs); audit migration `0002_audit_logs.sql` applied
 - Scheduler Worker: `awe-ai-workforce-scheduler` deployed with the shared D1 binding
-- Scheduler Cron: `*/1 * * * *` (every minute)
+- Scheduler Cron: `*/1 * * * *` (every minute); latest worker source deployed
 - GitHub repository: `ARARAT33/AiTeam`; production branch `main`
 
 ## Identity and security configuration
@@ -16,6 +16,8 @@
 - Owner login configured in Pages preview and production: `ARARAT33`
 - Required verified primary GitHub email: `araratavetisyan777999@gmail.com`
 - OAuth now requests `read:user user:email` and checks both the exact login and verified primary email.
+- Same-origin API mutation checks, bounded request bodies, provider URL validation, signed `__Host-` sessions, CSP/HSTS headers and an owner-action audit log are implemented.
+- Latest branch preview deployment: `https://7aa1e8a1.awe-ai-workforce.pages.dev` (successful build/deploy). Latest CI typecheck passed.
 - Mutating API calls require same-origin requests and JSON content type.
 - Provider endpoint input rejects insecure schemes, credentials, local/private host patterns and non-standard ports.
 - Dashboard is light-theme only; CSP and browser security headers are tightened.
