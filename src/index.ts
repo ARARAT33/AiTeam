@@ -3,6 +3,7 @@ import {cookie,verifySession,signSession,encryptSecret,now,randomId,json} from "
 import {runTeam} from "./agents";
 
 async function readBody(req:Request){try{const raw=await req.text();if(raw.length>20000)return {};return JSON.parse(raw) as Record<string,any>}catch{return {}}}
+async function audit(env:Env,actor:string,action:string,targetType:string,targetId:string|null,detail=""){await env.DB.prepare("INSERT INTO audit_logs (id,actor,action,target_type,target_id,detail,created_at) VALUES (?,?,?,?,?,?,?)").bind(randomId(),actor,action,targetType,targetId,String(detail).slice(0,1500),now()).run()}
 async function admin(req:Request,env:Env){const login=await verifySession(env,cookie(req,"__Host-awe_session"));return login&&login.toLowerCase()===(env.ADMIN_GITHUB_LOGIN||"ARARAT33").toLowerCase()?login:null}
 function clearCookie(name:string){return name+"=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"}
 function safeUrl(value:string){try{if(value.length>2048)return null;const u=new URL(value);const host=u.hostname.toLowerCase();if(u.protocol!=="https:"||u.username||u.password||u.search||u.hash||u.port&&u.port!=="443"||!host.includes(".")||host==="localhost"||host.endsWith(".localhost")||host.endsWith(".local")||host.endsWith(".internal")||host.includes(":")||/^\d{1,3}(\.\d{1,3}){3}$/.test(host))return null;const out=u.toString();return out.endsWith("/")?out.slice(0,-1):out}catch{return null}}
@@ -43,6 +44,7 @@ export async function handleApi(req:Request,env:Env,url:URL):Promise<Response>{
  }
  const login=await admin(req,env);if(!login)return json({error:"Authentication required"},401);
  if(url.pathname==="/api/health")return json({ok:true,service:"AWE AI Workforce",time:now()});
+ if(url.pathname==="/api/audit"&&req.method==="GET"){const r=await env.DB.prepare("SELECT id,actor,action,target_type,target_id,detail,created_at FROM audit_logs ORDER BY created_at DESC LIMIT 100").all();return json({entries:r.results})}
  if(url.pathname==="/api/overview"){
   const [tasks,models,plugins]=await Promise.all([env.DB.prepare("SELECT status,COUNT(*) count FROM tasks GROUP BY status").all(),env.DB.prepare("SELECT COUNT(*) total,SUM(enabled) enabled FROM models").first(),env.DB.prepare("SELECT COUNT(*) total,SUM(enabled) enabled FROM plugins").first()]);
   return json({tasks:tasks.results,models,plugins,operator:login});
@@ -55,34 +57,35 @@ export async function handleApi(req:Request,env:Env,url:URL):Promise<Response>{
   if(!name||!model||!base||key.length<8)return json({error:"Name, model ID, HTTPS base URL and API key are required"},400);
   const id=randomId(),t=now(),secret=await encryptSecret(env,key);
   await env.DB.prepare("INSERT INTO models (id,name,provider,model_id,base_url,encrypted_api_key,enabled,priority,daily_limit,max_concurrency,created_at,updated_at) VALUES (?,?,?,?,?,?,1,?,?,?,?,?)").bind(id,name,provider,model,base,secret,Number(d.priority)||100,Math.max(1,Number(d.daily_limit)||100),Math.max(1,Number(d.max_concurrency)||1),t,t).run();
+  await audit(env,login,"model.created","model",id,name);
   return json({id,ok:true},201);
  }
  if(url.pathname.startsWith("/api/models/")&&req.method==="PATCH"){
   const id=url.pathname.split("/").pop()!,d=await readBody(req),keys=["enabled","priority","daily_limit","max_concurrency","name"],sets:string[]=[],vals:any[]=[];
   for(const k of keys)if(d[k]!==undefined){sets.push(k+"=?");vals.push(k==="enabled"?(d[k]?1:0):k==="name"?String(d[k]).slice(0,80):Math.max(k==="priority"?0:1,Number(d[k])||0))}
   if(!sets.length)return json({error:"No supported fields"},400);sets.push("updated_at=?");vals.push(now(),id);
-  await env.DB.prepare("UPDATE models SET "+sets.join(",")+" WHERE id=?").bind(...vals).run();return json({ok:true});
+  await env.DB.prepare("UPDATE models SET "+sets.join(",")+" WHERE id=?").bind(...vals).run();await audit(env,login,"model.updated","model",id,Object.keys(d).join(","));return json({ok:true});
  }
- if(url.pathname.startsWith("/api/models/")&&req.method==="DELETE"){await env.DB.prepare("DELETE FROM models WHERE id=?").bind(url.pathname.split("/").pop()!).run();return json({ok:true})}
+ if(url.pathname.startsWith("/api/models/")&&req.method==="DELETE"){const id=url.pathname.split("/").pop()!;await env.DB.prepare("DELETE FROM models WHERE id=?").bind(id).run();await audit(env,login,"model.deleted","model",id);return json({ok:true})}
  if(url.pathname==="/api/tasks"&&req.method==="GET"){const r=await env.DB.prepare("SELECT id,title,prompt,status,priority,result,error,attempts,max_attempts,created_at,updated_at FROM tasks ORDER BY created_at DESC LIMIT 100").all();return json({tasks:r.results})}
  if(url.pathname==="/api/tasks"&&req.method==="POST"){
   const d=await readBody(req),title=String(d.title||"New task").slice(0,160),prompt=String(d.prompt||"").slice(0,12000);if(!prompt.trim())return json({error:"Task prompt is required"},400);
   const count=await env.DB.prepare("SELECT COUNT(*) count FROM tasks WHERE status IN ('queued','running')").first<{count:number}>();if((count?.count||0)>=100)return json({error:"Queue is full"},429);
   const id=randomId(),t=now();await env.DB.prepare("INSERT INTO tasks (id,title,prompt,status,priority,max_attempts,created_at,updated_at) VALUES (?,?,?,'queued',?,?,?,?)").bind(id,title,prompt,Math.min(100,Math.max(0,Number(d.priority)||50)),Math.max(1,Math.min(5,Number(env.MAX_TASK_ATTEMPTS)||3)),t,t).run();
-  await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,'queued',?,?)").bind(randomId(),id,"system","Task added to persistent queue",t).run();return json({id,status:"queued"},201);
+  await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,'queued',?,?)").bind(randomId(),id,"system","Task added to persistent queue",t).run();await audit(env,login,"task.created","task",id,title);return json({id,status:"queued"},201);
  }
  if(url.pathname.startsWith("/api/tasks/")&&url.pathname.endsWith("/retry")&&req.method==="POST"){
   const id=url.pathname.split("/")[3],t=now();
   const result=await env.DB.prepare("UPDATE tasks SET status='queued',attempts=0,error=NULL,started_at=NULL,finished_at=NULL,updated_at=? WHERE id=? AND status='failed'").bind(t,id).run();
   if(!result.meta.changes)return json({error:"Only failed tasks can be retried"},409);
-  await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,'retry_requested',?,?)").bind(randomId(),id,login,"Manual retry requested",t).run();
+  await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,'retry_requested',?,?)").bind(randomId(),id,login,"Manual retry requested",t).run();await audit(env,login,"task.retried","task",id);
   return json({ok:true,status:"queued"});
  }
  if(url.pathname.startsWith("/api/tasks/")&&url.pathname.endsWith("/cancel")&&req.method==="POST"){
   const id=url.pathname.split("/")[3],t=now();
   const result=await env.DB.prepare("UPDATE tasks SET status='cancelled',updated_at=?,finished_at=? WHERE id=? AND status='queued'").bind(t,t,id).run();
   if(!result.meta.changes)return json({error:"Only queued tasks can be cancelled"},409);
-  await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,'cancelled',?,?)").bind(randomId(),id,login,"Queued task cancelled",t).run();
+  await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,'cancelled',?,?)").bind(randomId(),id,login,"Queued task cancelled",t).run();await audit(env,login,"task.cancelled","task",id);
   return json({ok:true,status:"cancelled"});
  }
  if(url.pathname.startsWith("/api/tasks/")&&url.pathname.endsWith("/events")){const id=url.pathname.split("/")[3],r=await env.DB.prepare("SELECT agent,event,detail,created_at FROM task_events WHERE task_id=? ORDER BY created_at ASC LIMIT 200").bind(id).all();return json({events:r.results})}
@@ -92,9 +95,9 @@ export async function handleApi(req:Request,env:Env,url:URL):Promise<Response>{
  if(url.pathname==="/api/plugins"&&req.method==="POST"){
   const d=await readBody(req),name=String(d.name||"").slice(0,80),description=String(d.description||"").slice(0,500);if(!name)return json({error:"Plugin name required"},400);
   const id=randomId(),t=now(),manifest=JSON.stringify({type:"declarative",version:"1.0.0",capabilities:Array.isArray(d.capabilities)?d.capabilities.slice(0,20):[],note:"Manifest only; executable code is not run."});
-  await env.DB.prepare("INSERT INTO plugins (id,name,description,manifest,enabled,requires_approval,created_at,updated_at) VALUES (?,?,?,?,0,1,?,?)").bind(id,name,description,manifest,t,t).run();return json({id,ok:true,enabled:false,requires_approval:true},201);
+  await env.DB.prepare("INSERT INTO plugins (id,name,description,manifest,enabled,requires_approval,created_at,updated_at) VALUES (?,?,?,?,0,1,?,?)").bind(id,name,description,manifest,t,t).run();await audit(env,login,"plugin.registered","plugin",id,name);return json({id,ok:true,enabled:false,requires_approval:true},201);
  }
- if(url.pathname.startsWith("/api/plugins/")&&req.method==="PATCH"){const d=await readBody(req);await env.DB.prepare("UPDATE plugins SET enabled=?,updated_at=? WHERE id=?").bind(d.enabled?1:0,now(),url.pathname.split("/").pop()!).run();return json({ok:true})}
+ if(url.pathname.startsWith("/api/plugins/")&&req.method==="PATCH"){const d=await readBody(req),id=url.pathname.split("/").pop()!;await env.DB.prepare("UPDATE plugins SET enabled=?,updated_at=? WHERE id=?").bind(d.enabled?1:0,now(),id).run();await audit(env,login,"plugin.toggled","plugin",id,d.enabled?"enabled":"disabled");return json({ok:true})}
  return json({error:"Not found"},404);
 }
 async function event(env:Env,id:string,agent:string,kind:string,detail:string){await env.DB.prepare("INSERT INTO task_events (id,task_id,agent,event,detail,created_at) VALUES (?,?,?,?,?,?)").bind(randomId(),id,agent,kind,detail.slice(0,3500),now()).run()}
