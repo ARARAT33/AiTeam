@@ -35,3 +35,5 @@ Free tiers have quotas and do not guarantee unlimited 24/7 inference. ChatGPT co
 The owner dashboard now includes persistent multi-conversation chat, D1-backed file uploads/downloads, OpenAI-compatible function calling, isolated workspace files, memory search and sandboxed HTML live previews. See [docs/CHAT-WORKSPACE.md](docs/CHAT-WORKSPACE.md) for API routes and limits.
 
 The assistant can create and edit files in its isolated project workspace and show HTML previews. These are drafts, not production source changes. Custom plugins remain declarative; browser automation, external OAuth integrations and autonomous production deployment are not yet implemented.
+
+To enable AI-proposed source changes, add a fine-grained `GITHUB_REPO_TOKEN` secret to Cloudflare Pages (Preview and Production), restricted to this repository with Contents read/write, Pull requests read/write and Metadata read. The assistant creates PRs only; it does not merge or deploy them.
