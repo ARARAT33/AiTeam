@@ -1,0 +1,13 @@
+name = "awe-ai-workforce-scheduler"
+main = "worker.js"
+compatibility_date = "2026-11-14"
+compatibility_flags = ["nodejs_compat"]
+[triggers]
+crons = ["*/1 * * * *"]
+[[d1_databases]]
+binding = "DB"
+database_name = "awe-workforce"
+database_id = "e2e4e5cf-eee9-4f70-8407-50f8fc8b986f"
+[vars]
+MAX_TASK_ATTEMPTS = "3"
+MAX_ACTIVE_TASKS = "5"
