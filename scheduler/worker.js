@@ -82,7 +82,7 @@ async function processOne(env){
      {role:"system",content:'Strict acceptance evaluator. Return ONLY JSON: {"passed":boolean,"issues":string[],"revision_instructions":string[]}. Mark passed only when every criterion is met.'},
      {role:"user",content:"TASK:\\n"+task.prompt+"\\nQUALITY STANDARD:\\n"+qualityStandard+"\\nDELIVERABLE:\\n"+finalReview+"\\nCheck "+pass+" of 5."}
     ],1400);
-    let check=null;try{check=JSON.parse(raw.match(/\\{[\\s\\S]*\\}/)?.[0]||"")}catch{}
+    let check=null;try{check=JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0]||"")}catch{}
     quality={passed:check?.passed===true,checks:pass,issues:Array.isArray(check?.issues)?check.issues.slice(0,12):["Quality evaluator returned invalid JSON"],revision_instructions:Array.isArray(check?.revision_instructions)?check.revision_instructions.slice(0,12):[]};
     await event(env,task.id,"quality-gate",quality.passed?"passed":"findings",JSON.stringify(quality));
     if(quality.passed)break;
