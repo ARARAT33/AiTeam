@@ -1,5 +1,5 @@
 import type {Env,ModelRow} from "./types";
-import {decryptSecret,randomId,now,json} from "./security";
+import {decryptSecret,encryptSecret,randomId,now,json} from "./security";
 
 const MAX_MESSAGE=20000, MAX_FILE=1200000, MAX_WORKSPACE_FILE=220000;
 const textTypes=["text/","application/json","application/xml","application/javascript","application/x-yaml"];
@@ -43,6 +43,17 @@ async function executeTool(env:Env,name:string,args:any){
  throw new Error("Tool is not available");
 }
 async function attachmentsContext(env:Env,ids:any[]){if(!Array.isArray(ids)||!ids.length)return "";const valid=ids.slice(0,8).map(x=>String(x).slice(0,80));const out:string[]=[];for(const id of valid){const f=await env.DB.prepare("SELECT name,mime_type,content_base64,size_bytes FROM chat_attachments WHERE id=?").bind(id).first<any>();if(!f)continue;out.push("Attachment: "+f.name+" ("+f.mime_type+", "+f.size_bytes+" bytes)");if(textTypes.some(t=>f.mime_type.startsWith(t))||/\\.(txt|md|json|csv|xml|yaml|yml|ts|tsx|js|jsx|py|rs|html|css|sql)$/i.test(f.name)){try{const decoded=atob(f.content_base64);const bytes=Uint8Array.from(decoded,c=>c.charCodeAt(0));const value=new TextDecoder().decode(bytes);out.push(value.slice(0,18000))}catch{}}}return out.length?"\\n\\nUSER FILES:\\n"+out.join("\\n---\\n"):""}
+const safeMcpEndpoint=(value:string)=>{try{const u=new URL(value);const h=u.hostname.toLowerCase();if(u.protocol!=="https:"||u.username||u.password||u.port&&u.port!=="443"||!h.includes(".")||h==="localhost"||h.endsWith(".local")||h.endsWith(".internal")||/^\\d{1,3}(\\.\\d{1,3}){3}$/.test(h)||h.includes(":")||u.search||u.hash)return null;return u.toString()}catch{return null}};
+async function mcpRequest(endpoint:string,token:string|null,method:string,params:any={},session?:string){const headers:any={"Content-Type":"application/json","Accept":"application/json, text/event-stream","MCP-Protocol-Version":"2025-03-26"};if(token)headers.Authorization="Bearer "+token;if(session)headers["Mcp-Session-Id"]=session;const res=await fetch(endpoint,{method:"POST",headers,body:JSON.stringify({jsonrpc:"2.0",id:randomId(),method,params}),signal:AbortSignal.timeout(18000)});if(!res.ok)throw new Error("MCP HTTP "+res.status);const sessionId=res.headers.get("Mcp-Session-Id")||session||undefined;const text=await res.text();let data:any=null;try{data=JSON.parse(text)}catch{const line=text.split("\\n").find(x=>x.startsWith("data:"));if(line)try{data=JSON.parse(line.slice(5).trim())}catch{}}if(data?.error)throw new Error(String(data.error.message||"MCP request failed").slice(0,300));return {result:data?.result||{},sessionId}}
+const builtinTools=[
+ {key:"builtin:workspace_list_files",name:"List project files",description:"List files in the isolated AI project workspace."},
+ {key:"builtin:workspace_read_file",name:"Read project file",description:"Read a project file."},
+ {key:"builtin:workspace_write_file",name:"Create or edit project file",description:"Write a versioned project draft; never deploys automatically."},
+ {key:"builtin:workspace_delete_file",name:"Delete project file",description:"Delete a file from the isolated workspace."},
+ {key:"builtin:workspace_preview",name:"Open live preview",description:"Preview an HTML file in an isolated iframe."},
+ {key:"builtin:memory_search",name:"Search memory",description:"Search previous task summaries."},
+ {key:"builtin:repo_propose_file_change",name:"Propose a source-code change",description:"Open a GitHub pull request for an AI-proposed source edit."}
+];
 export async function handleWorkspaceApi(req:Request,env:Env,url:URL,login:string):Promise<Response|null>{
  const p=url.pathname;
  if(p==="/api/conversations"&&req.method==="GET"){const r=await env.DB.prepare("SELECT c.id,c.title,c.created_at,c.updated_at,(SELECT COUNT(*) FROM chat_messages m WHERE m.conversation_id=c.id) message_count FROM conversations c ORDER BY c.updated_at DESC LIMIT 100").all();return json({conversations:r.results})}
