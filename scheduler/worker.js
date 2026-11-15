@@ -72,11 +72,32 @@ async function processOne(env){
   const agents=chosen.length===1?await (async()=>{const out=[];for(let i=0;i<specs.length;i++)out.push(await execute(specs[i],i));return out})():await Promise.all(specs.map((spec,i)=>execute(spec,i)));
   const work=agents.map(a=>"## "+a.role+"\\n"+a.output).join("\\n\\n");
   const review=await role(env,chosen,Math.max(0,chosen.length-1),[{role:"system",content:"You are the independent QA lead. Review all specialist outputs against the original request. Resolve conflicts, identify missing requirements and security risks, then provide one coherent final deliverable. Do not reveal hidden reasoning."},{role:"user",content:"Original request:\\n"+task.prompt+"\\nDirector plan:\\n"+parsed.plan+"\\nSpecialist outputs:\\n"+work}],2600);
+  let finalReview=review,quality={passed:true,checks:0,issues:[]},standardRow=await env.DB.prepare("SELECT value FROM settings WHERE key=?").bind("autonomous_quality_standard").first();
+  let qualityStandard="";try{qualityStandard=String(JSON.parse(standardRow?.value||"{}").standard||"")}catch{}
+  if(qualityStandard){
+   await event(env,task.id,"quality-gate","started","Applying saved mandatory quality standard");
+   quality.passed=false;
+   for(let pass=1;pass<=5;pass++){
+    const raw=await role(env,chosen,Math.max(0,chosen.length-1),[
+     {role:"system",content:'Strict acceptance evaluator. Return ONLY JSON: {"passed":boolean,"issues":string[],"revision_instructions":string[]}. Mark passed only when every criterion is met.'},
+     {role:"user",content:"TASK:\\n"+task.prompt+"\\nQUALITY STANDARD:\\n"+qualityStandard+"\\nDELIVERABLE:\\n"+finalReview+"\\nCheck "+pass+" of 5."}
+    ],1400);
+    let check=null;try{check=JSON.parse(raw.match(/\\{[\\s\\S]*\\}/)?.[0]||"")}catch{}
+    quality={passed:check?.passed===true,checks:pass,issues:Array.isArray(check?.issues)?check.issues.slice(0,12):["Quality evaluator returned invalid JSON"],revision_instructions:Array.isArray(check?.revision_instructions)?check.revision_instructions.slice(0,12):[]};
+    await event(env,task.id,"quality-gate",quality.passed?"passed":"findings",JSON.stringify(quality));
+    if(quality.passed)break;
+    if(pass<5)finalReview=await role(env,chosen,0,[
+     {role:"system",content:"You are the delivery lead. Revise the complete deliverable to meet every quality criterion. Preserve correct work. Do not claim unperformed actions."},
+     {role:"user",content:"TASK:\\n"+task.prompt+"\\nQUALITY STANDARD:\\n"+qualityStandard+"\\nCURRENT RESULT:\\n"+finalReview+"\\nISSUES:\\n"+quality.issues.join("\\n")+"\\nFIXES:\\n"+quality.revision_instructions.join("\\n")+"\\nReturn the complete revised result."}
+    ],3000);
+   }
+   finalReview+="\\n\\nQuality gate: "+(quality.passed?"PASSED":"NOT PASSED")+" after "+quality.checks+" checks.";
+  }
   await event(env,task.id,"planner","completed",parsed.plan);
   for(const agent of agents)await event(env,task.id,agent.role,"completed",agent.output);
-  await event(env,task.id,"reviewer","completed",review);
-  await env.DB.prepare("UPDATE tasks SET status='completed',result=?,error=NULL,updated_at=?,finished_at=? WHERE id=?").bind(JSON.stringify({plan:parsed.plan,work,review,agents}),iso(),iso(),task.id).run();
-  await env.DB.prepare("INSERT INTO memories (id,task_id,kind,content,created_at) VALUES (?,?, 'task_summary', ?,?)").bind(id(),task.id,(task.title+": "+review).slice(0,5000),iso()).run();
+  await event(env,task.id,"reviewer","completed",finalReview);
+  await env.DB.prepare("UPDATE tasks SET status='completed',result=?,error=NULL,updated_at=?,finished_at=? WHERE id=?").bind(JSON.stringify({plan:parsed.plan,work,review:finalReview,agents,quality}),iso(),iso(),task.id).run();
+  await env.DB.prepare("INSERT INTO memories (id,task_id,kind,content,created_at) VALUES (?,?, 'task_summary', ?,?)").bind(id(),task.id,(task.title+": "+finalReview).slice(0,5000),iso()).run();
  }catch(error){
   const message=String(error?.message||error);
   await event(env,task.id,"system","error",message);
